@@ -61,6 +61,7 @@ namespace BehaviourTreeAsset
                 DrawTaskName();
                 DrawAddTask();
             }
+            GUILayout.EndArea();
         }
 
         void DrawTaskName( )
@@ -87,7 +88,8 @@ namespace BehaviourTreeAsset
             GenericMenu newMenu = new GenericMenu();
             foreach ( var item in types )
             {
-                if ( baseType == item.BaseType )
+                if ( baseType == item.BaseType 
+                    && !item.IsAbstract)
                 {
                     CreateNewTaskParameter p = new CreateNewTaskParameter();
                     p.newType = item;

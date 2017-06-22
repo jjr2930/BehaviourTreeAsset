@@ -35,6 +35,11 @@ namespace BehaviourTreeAsset
         private void Awake()
         {
             rootTask = GetSelectedTask();
+            if ( null == rootTask )
+            {
+                return;
+            }
+
             CollectChildTask( rootTask );
             CreateEditorTask( rootTask );
             SetChildPosition( rootTask );
