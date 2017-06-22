@@ -8,28 +8,21 @@ namespace BehaviourTreeAsset
 {
     public class BehaviourTreeEditor : EditorWindow
     {
+        #region const
+
+        public float TASK_WIDTH = 100;
+        public float TASK_HEIGHT = 50;
+        public float TASK_INTERVAL = 20;
+        #endregion
 
         #region static
         [MenuItem( "Tools/BehaviourTree/Edit BehaviourTree" )]
         static void OpenWindow()
         {
             GetWindow<BehaviourTreeEditor>();
-
         }
 
-        static Texture taskBackground = null;
-        static Texture TaskBackground
-        {
-            get
-            {
-                if ( null == taskBackground )
-                {
-                    taskBackground = ( Texture )EditorGUIUtility.Load( "TaskBackground.png" );
-                }
-                return taskBackground;
-            }
-        }
-
+        static Task cachedSelectedTask = null;
         #endregion
 
         Task rootTask = null;
@@ -38,72 +31,126 @@ namespace BehaviourTreeAsset
         /// 코딩의 편의를 위해 Task에셋 별로 EditorTask를 갖는다.
         /// </summary>
         Dictionary<Task, EditorTask> dicEditorTest = new Dictionary<Task, EditorTask>();
+        List<Task> tempTaskList = new List<Task>();
+        private void Awake()
+        {
+            rootTask = GetSelectedTask();
+            CollectChildTask( rootTask );
+            CreateEditorTask( rootTask );
+            SetChildPosition( rootTask );
 
+        }
 
         private void OnGUI()
         {
-            var foundedTasks = Selection.GetFiltered<Task>( SelectionMode.Assets );
-            if ( foundedTasks.Length == 0 )
+            rootTask = GetSelectedTask();
+
+            if(null == rootTask)
             {
-                DrawSelectObject();
-                return;
+                GUILayout.Label( "Select Behaviour tree" );
+                return; 
             }
 
-            rootTask = foundedTasks[0];
+            CollectChildTask( rootTask );
+            CreateEditorTask( rootTask );
+            SetChildPosition( rootTask );
 
             DrawTask( rootTask );
         }
 
-        void DrawSelectObject()
+        void SetChildPosition(Task targetTask)
         {
-            GUILayout.Label( "Select Behaviour Tree" );
+            var         editorTask      = dicEditorTest[targetTask];
+            EditorTask  childEditorTask = null;
+            var         childs          = targetTask.GetChilds();
+
+            for ( int i = 0 ; i < childs.Count ; i++ )
+            {
+                childEditorTask             = dicEditorTest[childs[i]];
+                float newX                  = editorTask.Position.x + 100 * i;
+                float newY                  = editorTask.Position.y + 50;
+                childEditorTask.Position    = new Vector2( newX, newY );
+                SetChildPosition( childs[i] );
+            }
+        }
+
+        void CreateEditorTask(Task targetTask)
+        {
+            AddTaskToDictionary( targetTask );
+            var editorTask = dicEditorTest[targetTask];
+            var childs = targetTask.GetChilds();
+            for(int i = 0 ; i<childs.Count ; i++ )
+            {
+                CreateEditorTask( childs[i] );
+            }
+        }
+
+        Task GetSelectedTask()
+        {
+            var currentSelectTasks = Selection.GetFiltered<Task>( SelectionMode.Assets );
+            if ( currentSelectTasks.Length != 0 )
+            {
+                if( currentSelectTasks[0] != cachedSelectedTask)
+                {
+                    cachedSelectedTask = currentSelectTasks[0];
+                }
+            }
+
+            return cachedSelectedTask;
         }
 
         void DrawTask( Task targetTask )
         {
             //리스트에 추가한다.
+            foreach ( var item in dicEditorTest )
+            {
+                item.Value.DrawTask();
+            }
+        }
+
+        void CollectChildTask( Task targetTask)
+        {
+            if(!tempTaskList.Contains(targetTask))
+            {
+                tempTaskList.Add( targetTask );
+            }
+
+            var childs = targetTask.GetChilds();
+            for(int i=0 ; i<childs.Count ; i++ )
+            {
+                CollectChildTask( childs[i] );
+            }
+        }
+
+        void AddTaskToDictionary( Task targetTask )
+        {
             if ( !dicEditorTest.ContainsKey( targetTask ) )
             {
                 EditorTask newEditorTask = new EditorTask();
                 newEditorTask.refTask = targetTask;
                 dicEditorTest.Add( targetTask, newEditorTask );
             }
-            EditorTask thisEditorTask = dicEditorTest[targetTask];
-
-            GUILayout.BeginArea( new Rect( Vector2.one * 100, Vector2.one * 50 ), TaskBackground );
-            {
-                DrawTaskName( thisEditorTask );
-                DrawAddTask( thisEditorTask );
-                DrawChilds( thisEditorTask );
-                DrawConnections();
-            };
-            GUILayout.EndArea();
         }
 
-        void DrawTaskName( EditorTask targetTask )
-        {
-            GUILayout.Label( targetTask.refTask.name );
-        }
+        
 
-        void DrawAddTask( EditorTask targetTask )
-        {
-            if ( GUILayout.Button( "+", JGUIUtil.FixRectSIze( 50, 20 ) ) )
-            {
-                DrawTaskGenericMenu();
-            }
-        }
 
         void DrawChilds( EditorTask targetTask )
         {
-            int childCount = targetTask.refTask.GetChilds().Count;
-            if ( childCount == 0 )
+            var childs = targetTask.refTask.GetChilds();
+            if ( childs.Count== 0 )
             {
                 return;
             }
 
-            for ( int i = 0 ; i < childCount ; i++ )
+            for ( int i = 0 ; i < childs.Count; i++ )
             {
-                DrawTask( targetTask.refTask.GetChilds()[i] );
+                AddTaskToDictionary( childs[i] );
+                EditorTask child = dicEditorTest[childs[i]];
+                float newX = targetTask.Position.x + TASK_WIDTH * i + TASK_INTERVAL;
+                float newY = targetTask.Position.y + TASK_HEIGHT + TASK_INTERVAL;
+                child.Position = targetTask.Position + new Vector2( newX, newY );
+                DrawTask( childs[i] );
             }
         }
 
@@ -112,40 +159,11 @@ namespace BehaviourTreeAsset
 
         }
 
-        void DrawTaskGenericMenu()
-        {
-            Type baseType = typeof(Task);
-            List<string> menuItemNames = new List<string>();
-            Assembly assembly = Assembly.GetAssembly(baseType);
-            Type[] types = assembly.GetTypes();
-            GenericMenu newMenu = new GenericMenu();
-            foreach ( var item in types )
-            {
-                if ( baseType == item.BaseType )
-                {
-                    string itemTypeName = item.ToString();
-                    menuItemNames.Add( item.ToString() );
-                    newMenu.AddItem( new GUIContent( itemTypeName ), false, CreateObjectUsingReflection, item );
-                }
-            }
-            newMenu.ShowAsContext();
 
-        }
+       
 
-        public void CreateObjectUsingReflection( object type )
-        {
-            Type t = type as Type;
-            if ( null == t )
-            {
-                Debug.LogErrorFormat( "{0} is not type", type );
-                return;
-            }
 
-            Task instance = ScriptableObject.CreateInstance(t) as Task;
-            instance.name = "newTask";
-            AssetDatabase.AddObjectToAsset( instance, rootTask );
-
-            AssetDatabase.ImportAsset( AssetDatabase.GetAssetPath( rootTask ) );
-        }
     }
+
+    
 }

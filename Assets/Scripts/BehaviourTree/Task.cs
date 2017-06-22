@@ -7,6 +7,7 @@ namespace BehaviourTreeAsset
     [System.Serializable]
     public class Task : ScriptableObject
     {
+        [SerializeField]
         protected List<Task> childs = new List<Task>();
         bool isInit = false;
         public bool AddTask( Task newTask )
